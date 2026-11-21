@@ -142,22 +142,21 @@ jobs:
         run: |
           flutter build apk --${{ github.event.inputs.build_type }} --target-platform android-arm64 --no-tree-shake-icons
 
-      - name: Protect APK with XopProtector
+      - name: Protect APK with dpt-shell
         run: |
-          echo "=== Downloading XopProtector ==="
-          if ! wget -q https://github.com/xopJack/XopProtector/releases/latest/download/protector-packer.jar -O xop-cli.jar; then
-            echo "::warning::XopProtector download failed — keeping unprotected APK"
-            exit 0
-          fi
-          ls -lh xop-cli.jar
-          echo "=== Running protection ==="
-          if ! java -jar xop-cli.jar --config native/protect.json; then
-            echo "::warning::XopProtector failed — keeping unprotected APK"
-            exit 0
-          fi
-          if [ -f build/app/outputs/flutter-apk/app-release-hardened.apk ]; then
-            mv build/app/outputs/flutter-apk/app-release-hardened.apk build/app/outputs/flutter-apk/app-release.apk
+          echo "=== Downloading dpt-shell ==="
+          wget -q https://github.com/luoyesiqiu/dpt-shell/releases/latest/download/executable.zip -O dpt.zip
+          unzip -o dpt.zip
+          
+          echo "=== Running dpt-shell protection ==="
+          java -jar dpt.jar -f build/app/outputs/flutter-apk/app-release.apk -o build/app/outputs/flutter-apk/ -vs
+          
+          echo "=== Swapping APK ==="
+          if [ -f build/app/outputs/flutter-apk/app-release-dpt.apk ]; then
+            mv build/app/outputs/flutter-apk/app-release-dpt.apk build/app/outputs/flutter-apk/app-release.apk
             echo "✓ Hardened APK in place"
+          else
+            echo "::warning::dpt-shell output not found, keeping original APK"
           fi
           ls -lh build/app/outputs/flutter-apk/
 
