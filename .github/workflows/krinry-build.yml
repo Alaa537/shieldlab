@@ -142,50 +142,29 @@ jobs:
         run: |
           flutter build apk --${{ github.event.inputs.build_type }} --target-platform android-arm64 --no-tree-shake-icons
 
-      - name: Build XopProtector from source
+      - name: Protect APK with dpt-shell
         run: |
-          echo "=== Cloning XopProtector ==="
-          git clone --depth 1 https://github.com/xopJack/XopProtector.git /tmp/xop
-          cd /tmp/xop
+          echo "=== Fetching latest dpt-shell release URL ==="
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest | jq -r '.assets[] | select(.name=="executable.zip") | .browser_download_url')
           
-          echo "=== Fixing hardcoded SDK path for Linux CI ==="
-          # استبدال أي مسار Windows بمسار SDK الصحيح في بيئة Linux
-          # يتم استبدال النص "E:\Android\..." بمسار $ANDROID_HOME
-          sed -i "s|E:\\\\Android[^\"']*|$ANDROID_HOME|g" settings.gradle.kts || true
+          if [ -z "$DOWNLOAD_URL" ]; then
+            echo "::error::Could not find executable.zip in latest release"
+            exit 1
+          fi
           
-          # حذف أي سطر يحتوي على sdk.dir من settings.gradle.kts
-          sed -i '/sdk\.dir/d' settings.gradle.kts || true
+          echo "Downloading from: $DOWNLOAD_URL"
+          curl -L -o dpt.zip "$DOWNLOAD_URL"
+          unzip -o dpt.zip
           
-          # إنشاء local.properties بمسار SDK الصحيح في GitHub Actions
-          echo "sdk.dir=$ANDROID_HOME" > local.properties
-          echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
-          
-          echo "=== Building packer + shell files ==="
-          chmod +x gradlew
-          ./gradlew :packer:jar
-          ./gradlew exportShellFiles
-          
-          echo "=== Copying artifacts ==="
-          mkdir -p $GITHUB_WORKSPACE/xop-artifacts
-          cp packer/build/libs/protector-packer-*.jar $GITHUB_WORKSPACE/xop-artifacts/xop-packer.jar
-          cp -r executable/shell-files $GITHUB_WORKSPACE/xop-artifacts/shell-files
-          echo "✓ XopProtector artifacts ready"
-
-      - name: Protect APK with XopProtector (True VMP)
-        run: |
-          cd $GITHUB_WORKSPACE
-          
-          echo "=== Running XopProtector with True VMP ==="
-          java -jar xop-artifacts/xop-packer.jar \
-            --config native/vmp-config.json \
-            --shell-dir xop-artifacts/shell-files
+          echo "=== Running dpt-shell protection ==="
+          java -jar dpt.jar -f build/app/outputs/flutter-apk/app-release.apk -o build/app/outputs/flutter-apk/ -vs
           
           echo "=== Swapping APK ==="
-          if [ -f build/app/outputs/flutter-apk/app-release-vmp.apk ]; then
-            mv build/app/outputs/flutter-apk/app-release-vmp.apk build/app/outputs/flutter-apk/app-release.apk
-            echo "✓ VMP-hardened APK in place"
+          if [ -f build/app/outputs/flutter-apk/app-release-dpt.apk ]; then
+            mv build/app/outputs/flutter-apk/app-release-dpt.apk build/app/outputs/flutter-apk/app-release.apk
+            echo "✓ Hardened APK in place"
           else
-            echo "::warning::XopProtector output not found, keeping original APK"
+            echo "::warning::dpt-shell output not found, keeping original APK"
           fi
           ls -lh build/app/outputs/flutter-apk/
 
