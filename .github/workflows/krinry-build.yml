@@ -144,30 +144,75 @@ jobs:
 
       - name: Protect APK with dpt-shell
         run: |
-          echo "=== Fetching latest dpt-shell release URL ==="
-          # اختيار أول ملف zip متاح في الإصدار الأحدث (سواء اسمه executable.zip أو dpt-shell-*.zip)
-          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
-          
+          set -e
+          echo "=== Fetching dpt-shell release ==="
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest \
+            | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
           if [ -z "$DOWNLOAD_URL" ]; then
-            echo "::error::Could not find any .zip asset in latest release"
+            echo "::error::No .zip asset found"
             exit 1
           fi
-          
-          echo "Downloading from: $DOWNLOAD_URL"
+          echo "URL: $DOWNLOAD_URL"
           curl -L -o dpt.zip "$DOWNLOAD_URL"
           unzip -o dpt.zip
-          
-          echo "=== Running dpt-shell protection ==="
-          java -jar dpt.jar -f build/app/outputs/flutter-apk/app-release.apk -o build/app/outputs/flutter-apk/ -vs
-          
-          echo "=== Swapping APK ==="
-          if [ -f build/app/outputs/flutter-apk/app-release-dpt.apk ]; then
-            mv build/app/outputs/flutter-apk/app-release-dpt.apk build/app/outputs/flutter-apk/app-release.apk
-            echo "✓ Hardened APK in place"
-          else
-            echo "::warning::dpt-shell output not found, keeping original APK"
+          echo
+          echo "=== After unzip (top-level) ==="
+          ls -la
+
+          echo "=== Locate dpt.jar ==="
+          DPT_JAR=$(find . -maxdepth 3 -name "dpt.jar" -type f | head -n 1)
+          if [ -z "$DPT_JAR" ]; then
+            echo "::error::dpt.jar not found"
+            find . -name "*.jar" -type f
+            exit 1
           fi
-          ls -lh build/app/outputs/flutter-apk/
+          DPT_DIR=$(dirname "$DPT_JAR")
+          echo "dpt.jar: $DPT_JAR"
+          echo "dpt dir: $DPT_DIR"
+          ls -la "$DPT_DIR"
+
+          APK_IN="$(pwd)/build/app/outputs/flutter-apk/app-release.apk"
+          APK_OUT_DIR="$(pwd)/build/app/outputs/flutter-apk"
+
+          echo "=== Run dpt-shell (NO signing) ==="
+          cd "$DPT_DIR"
+          java -jar dpt.jar -f "$APK_IN" -o "$APK_OUT_DIR" --no-sign -vs
+          cd - > /dev/null
+
+          echo "=== Output directory after protection ==="
+          ls -lh "$APK_OUT_DIR"
+
+          # اختر الـ output الجديد (مش الـ original)
+          DPT_OUT=$(ls -t "$APK_OUT_DIR"/*.apk 2>/dev/null \
+                    | grep -v "app-release.apk" | head -n 1)
+
+          if [ -z "$DPT_OUT" ]; then
+            echo "::warning::dpt-shell produced no output — keeping original"
+            exit 0
+          fi
+          echo "dpt output: $DPT_OUT"
+
+          echo "=== Re-sign with our keystore ==="
+          BT_DIR=$(ls -d "$ANDROID_HOME"/build-tools/*/ 2>/dev/null | sort -V | tail -n 1)
+          APKSIGNER="${BT_DIR}apksigner"
+          echo "apksigner: $APKSIGNER"
+
+          "$APKSIGNER" sign \
+            --ks android/app/release.jks \
+            --ks-key-alias shieldlab \
+            --ks-pass pass:shieldlab123 \
+            --key-pass pass:shieldlab123 \
+            --out "${APK_OUT_DIR}/app-release-final.apk" \
+            "$DPT_OUT"
+
+          echo "=== Replace original APK ==="
+          mv "${APK_OUT_DIR}/app-release-final.apk" "$APK_IN"
+          rm -f "$DPT_OUT"
+
+          echo "=== Final APK ==="
+          ls -lh "$APK_OUT_DIR"
+          echo "Cert hash after re-sign:"
+          "$APKSIGNER" verify --print-certs "$APK_IN" | grep "SHA-256"
 
       - name: Verify APK contains native lib
         run: |
