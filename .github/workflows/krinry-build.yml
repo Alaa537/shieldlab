@@ -48,7 +48,13 @@ jobs:
           cp native/cpp/* android/app/src/main/cpp/
           mkdir -p android/app/src/main/res/xml
           cp native/network_security_config.template.xml android/app/src/main/res/xml/network_security_config.xml || true
-          cp native/kt/*.kt android/app/src/main/kotlin/com/alaa/shieldlab/
+          ls -la native/kt/
+          for f in native/kt/*.kt; do
+            echo "Copying: $f"
+            cp -v "$f" android/app/src/main/kotlin/com/alaa/shieldlab/
+          done
+          echo "=== Files in target ==="
+          ls -la android/app/src/main/kotlin/com/alaa/shieldlab/
 
       - name: Inject expected hash
         run: |
