@@ -142,30 +142,38 @@ jobs:
         run: |
           flutter build apk --${{ github.event.inputs.build_type }} --target-platform android-arm64 --no-tree-shake-icons
 
-      - name: Protect APK with dpt-shell
+      - name: Build XopProtector from source
         run: |
-          echo "=== Fetching latest dpt-shell release URL ==="
-          # استخدام GitHub API للحصول على رابط التنزيل الصحيح لأحدث إصدار
-          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest | jq -r '.assets[] | select(.name=="executable.zip") | .browser_download_url')
+          echo "=== Cloning XopProtector ==="
+          git clone --depth 1 https://github.com/xopJack/XopProtector.git /tmp/xop
+          cd /tmp/xop
           
-          if [ -z "$DOWNLOAD_URL" ]; then
-            echo "::error::Could not find executable.zip in latest release"
-            exit 1
-          fi
+          echo "=== Building packer + shell files ==="
+          chmod +x gradlew
+          ./gradlew :packer:jar
+          ./gradlew exportShellFiles
           
-          echo "Downloading from: $DOWNLOAD_URL"
-          curl -L -o dpt.zip "$DOWNLOAD_URL"
-          unzip -o dpt.zip
+          echo "=== Copying artifacts ==="
+          mkdir -p $GITHUB_WORKSPACE/xop-artifacts
+          cp packer/build/libs/protector-packer-*.jar $GITHUB_WORKSPACE/xop-artifacts/xop-packer.jar
+          cp -r executable/shell-files $GITHUB_WORKSPACE/xop-artifacts/shell-files
+          echo "✓ XopProtector artifacts ready"
+
+      - name: Protect APK with XopProtector (True VMP)
+        run: |
+          cd $GITHUB_WORKSPACE
           
-          echo "=== Running dpt-shell protection ==="
-          java -jar dpt.jar -f build/app/outputs/flutter-apk/app-release.apk -o build/app/outputs/flutter-apk/ -vs
+          echo "=== Running XopProtector with True VMP ==="
+          java -jar xop-artifacts/xop-packer.jar \
+            --config native/vmp-config.json \
+            --shell-dir xop-artifacts/shell-files
           
           echo "=== Swapping APK ==="
-          if [ -f build/app/outputs/flutter-apk/app-release-dpt.apk ]; then
-            mv build/app/outputs/flutter-apk/app-release-dpt.apk build/app/outputs/flutter-apk/app-release.apk
-            echo "✓ Hardened APK in place"
+          if [ -f build/app/outputs/flutter-apk/app-release-vmp.apk ]; then
+            mv build/app/outputs/flutter-apk/app-release-vmp.apk build/app/outputs/flutter-apk/app-release.apk
+            echo "✓ VMP-hardened APK in place"
           else
-            echo "::warning::dpt-shell output not found, keeping original APK"
+            echo "::warning::XopProtector output not found, keeping original APK"
           fi
           ls -lh build/app/outputs/flutter-apk/
 

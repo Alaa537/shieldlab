@@ -1,0 +1,32 @@
+{
+  "inputApk": "build/app/outputs/flutter-apk/app-release.apk",
+  "outputApk": "build/app/outputs/flutter-apk/app-release-vmp.apk",
+  "keystore": {
+    "path": "android/app/release.jks",
+    "alias": "shieldlab",
+    "password": "shieldlab123"
+  },
+  "dexEncrypt": {
+    "enabled": true,
+    "algorithm": "AES",
+    "keyMode": "native"
+  },
+  "vmp": {
+    "enabled": true,
+    "mode": "true-vmp",
+    "methods": [
+      "com.alaa.shieldlab.ShieldApplication",
+      "com.alaa.shieldlab.MainActivity",
+      "com.alaa.shieldlab.Enforcement",
+      "com.alaa.shieldlab.SignatureBridge"
+    ],
+    "exclude": [
+      "io.flutter.*",
+      "androidx.*"
+    ]
+  },
+  "rasp": {
+    "enabled": true,
+    "responseMode": "fake_data"
+  }
+}
