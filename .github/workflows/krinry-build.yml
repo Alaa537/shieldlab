@@ -148,6 +148,15 @@ jobs:
           git clone --depth 1 https://github.com/xopJack/XopProtector.git /tmp/xop
           cd /tmp/xop
           
+          echo "=== Fixing hardcoded SDK path for Linux CI ==="
+          # حذف المسار الثابت من settings.gradle.kts
+          sed -i '/sdk.dir=/d' settings.gradle.kts || true
+          sed -i '/E:\\\\Android/d' settings.gradle.kts || true
+          
+          # إنشاء local.properties بمسار SDK الصحيح في GitHub Actions
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "ndk.dir=$ANDROID_NDK_HOME" >> local.properties
+          
           echo "=== Building packer + shell files ==="
           chmod +x gradlew
           ./gradlew :packer:jar
