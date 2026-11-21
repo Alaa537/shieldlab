@@ -35,6 +35,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic> _diag = {};
   bool _loading = true;
+  String _mode = 'UNKNOWN';
 
   @override
   void initState() {
@@ -49,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _diag = r ?? {};
+          _mode = (_diag['mode'] ?? 'UNKNOWN').toString();
           _loading = false;
         });
       }
@@ -62,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  bool get _allOk => _diag['certMatch'] == true && _diag['envSafe'] == true;
+  bool get _isKillMode => _mode == 'KILL';
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
             : ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 40),
                   const Icon(Icons.shield, size: 80, color: Color(0xFF00E5A0)),
                   const SizedBox(height: 16),
                   const Text(
@@ -82,26 +84,29 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'ShieldLab · Diagnostic Mode',
+                  Text(
+                    _isKillMode ? 'Protected' : 'ShieldLab · Diagnostic',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
                   ),
                   const SizedBox(height: 24),
                   Center(child: _badge()),
                   const SizedBox(height: 24),
-                  _diagCard(),
-                  const SizedBox(height: 20),
-                  FilledButton.icon(
-                    onPressed: _load,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Re-run diagnostics'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: const Color(0xFF00E5A0),
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+                  // في KILL mode: مفيش تفاصيل
+                  if (!_isKillMode) ...[
+                    _diagCard(),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: _load,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Re-run diagnostics'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF00E5A0),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
       ),
@@ -109,7 +114,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _badge() {
-    final ok = _allOk;
+    if (_isKillMode) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.green.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.green.withOpacity(0.5)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.verified_user, color: Colors.green, size: 20),
+            SizedBox(width: 8),
+            Text('Verified',
+                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      );
+    }
+    final ok = _diag['certMatch'] == true && _diag['envSafe'] == true;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
@@ -122,19 +146,13 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            ok ? Icons.check_circle : Icons.warning,
-            color: ok ? Colors.green : Colors.orange,
-            size: 20,
-          ),
+          Icon(ok ? Icons.check_circle : Icons.warning,
+              color: ok ? Colors.green : Colors.orange, size: 20),
           const SizedBox(width: 8),
-          Text(
-            ok ? 'All checks passed' : 'Check issues below',
-            style: TextStyle(
-              color: ok ? Colors.green : Colors.orange,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text(ok ? 'All checks passed' : 'Check issues below',
+              style: TextStyle(
+                  color: ok ? Colors.green : Colors.orange,
+                  fontWeight: FontWeight.bold)),
         ],
       ),
     );
@@ -152,10 +170,8 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const Icon(Icons.info_outline, size: 20, color: Color(0xFF00E5A0)),
                 const SizedBox(width: 8),
-                const Text(
-                  'Diagnostic',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                ),
+                const Text('Diagnostic',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.copy, size: 18),
@@ -179,20 +195,13 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           SizedBox(
             width: 110,
-            child: Text(
-              key,
-              style: const TextStyle(
-                fontSize: 11,
-                color: Colors.grey,
-                fontFamily: 'monospace',
-              ),
-            ),
+            child: Text(key,
+                style: const TextStyle(
+                    fontSize: 11, color: Colors.grey, fontFamily: 'monospace')),
           ),
           Expanded(
-            child: SelectableText(
-              value,
-              style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
-            ),
+            child: SelectableText(value,
+                style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
           ),
         ],
       ),
@@ -203,10 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final text = _diag.entries.map((e) => '${e.key}: ${e.value}').join('\n');
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Copied to clipboard'),
-        duration: Duration(seconds: 1),
-      ),
+      const SnackBar(content: Text('Copied'), duration: Duration(seconds: 1)),
     );
   }
 }

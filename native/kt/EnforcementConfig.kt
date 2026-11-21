@@ -1,18 +1,19 @@
 package com.alaa.shieldlab
 
 object EnforcementConfig {
-    // DIAGNOSE = never kill (safe) | WARN = toast but continue | KILL = terminate
-    enum class Mode { DIAGNOSE, WARN, KILL }
+    enum class Mode { DIAGNOSE, KILL }
 
     // ═══════════════════════════════════════════
-    // افتراضي: DIAGNOSE — لا يقتل أبداً
+    // PRODUCTION: KILL
     // ═══════════════════════════════════════════
-    val MODE: Mode = Mode.DIAGNOSE
+    val MODE: Mode = Mode.KILL
 
-    // Individual check toggles
-    const val CHECK_CERT     = true
-    const val CHECK_DEBUGGER = false
-    const val CHECK_ROOT     = false
-    const val CHECK_FRIDA    = true
-    const val CHECK_EMULATOR = false
+    // ═══════════════════════════════════════════
+    // Individual checks (production config)
+    // ═══════════════════════════════════════════
+    const val CHECK_CERT     = true    // أساسي — يكشف أي تعديل
+    const val CHECK_DEBUGGER = true    // أساسي — يكشف adb/Frida
+    const val CHECK_FRIDA    = true    // أساسي
+    const val CHECK_ROOT     = false   // ← اختياري (المختبِر ممکن یکون rooted)
+    const val CHECK_EMULATOR = false   // ← اختياري (ممکن یختبر على emulator)
 }
