@@ -46,6 +46,8 @@ jobs:
         run: |
           mkdir -p android/app/src/main/cpp
           cp native/cpp/* android/app/src/main/cpp/
+          mkdir -p android/app/src/main/res/xml
+          cp native/network_security_config.template.xml android/app/src/main/res/xml/network_security_config.xml || true
           cp native/kt/*.kt android/app/src/main/kotlin/com/alaa/shieldlab/
 
       - name: Inject expected hash

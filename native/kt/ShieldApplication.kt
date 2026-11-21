@@ -11,22 +11,11 @@ import java.util.Locale
 class ShieldApplication : Application() {
     private val TAG = "ShieldLab"
 
-    // Log مخفي — في filesDir الخاص بالتطبيق (غير مرئي بدون root)
     val logFile: File by lazy {
         val dir = File(filesDir, ".shield").apply { mkdirs() }
         File(dir, ".diag").also {
             try { if (it.exists()) it.delete() } catch (_: Throwable) {}
         }
-    }
-
-    // also keep external copy in DIAGNOSE mode only
-    private val externalLog: File? by lazy {
-        if (EnforcementConfig.MODE == EnforcementConfig.Mode.DIAGNOSE) {
-            val dir = getExternalFilesDir(null) ?: return@lazy null
-            File(dir, "shieldlab_diag.log").also {
-                try { if (it.exists()) it.delete() } catch (_: Throwable) {}
-            }
-        } else null
     }
 
     override fun onCreate() {
@@ -35,7 +24,6 @@ class ShieldApplication : Application() {
             log("═══ Startup ═══")
             log("Mode=${EnforcementConfig.MODE}")
             log("Device=${Build.MANUFACTURER} ${Build.MODEL} / Android ${Build.VERSION.RELEASE}")
-            log("ABIs=${Build.SUPPORTED_ABIS.joinToString()}")
             log("Native=${Enforcement.loadError ?: "OK"}")
 
             val failure = runAllChecks()
@@ -46,10 +34,9 @@ class ShieldApplication : Application() {
             }
             log("✓ All checks passed")
         } catch (t: Throwable) {
-            // Fail-closed: exception = محاولة تخطي
-            log("✗ EXCEPTION in onCreate: ${t::class.java.simpleName}: ${t.message}")
+            log("✗ EXCEPTION: ${t::class.java.simpleName}: ${t.message}")
             log(t.stackTraceToString())
-            handleFailure("onCreate exception")
+            handleFailure("onCreate_exception")
         }
     }
 
@@ -60,7 +47,7 @@ class ShieldApplication : Application() {
             return "apk_path: ${t.message}"
         }
 
-        // 1) Cert check
+        // ─── 1) Cert verification ───
         if (EnforcementConfig.CHECK_CERT) {
             val result = try { Enforcement.nativeEnforceCert(apk) } catch (t: Throwable) {
                 return "cert_exception: ${t.message}"
@@ -73,7 +60,7 @@ class ShieldApplication : Application() {
             }
         }
 
-        // 2) Environment
+        // ─── 2) Core environment ───
         val env = try { Enforcement.envReport() } catch (t: Throwable) {
             return "env_exception: ${t.message}"
         }
@@ -82,58 +69,44 @@ class ShieldApplication : Application() {
         if (EnforcementConfig.CHECK_ROOT     && env["root"]     == true) return "root"
         if (EnforcementConfig.CHECK_EMULATOR && env["emulator"] == true) return "emulator"
 
+        // ─── 3) Extra (Vigil-style) ───
+        val extra = try { Enforcement.extraReport(this) } catch (t: Throwable) {
+            return "extra_exception: ${t.message}"
+        }
+        if (EnforcementConfig.CHECK_RWXP          && extra["rwxp"]          == true) return "rwxp_segment"
+        if (EnforcementConfig.CHECK_CLONE         && extra["clone"]         == true) return "clone_detected"
+        if (EnforcementConfig.CHECK_EMULATOR_HARD && extra["emulator_hard"] == true) return "emulator_hard"
+        if (EnforcementConfig.CHECK_DEBUG_PORT    && extra["debug_port"]    == true) return "debug_port"
+
+        if (EnforcementConfig.CHECK_XPOSED) {
+            if (extra["xposed_bridge"]  == true) return "xposed_bridge"
+            if (extra["xposed_helpers"] == true) return "xposed_helpers"
+            if (extra["lsposed"]        == true) return "lsposed"
+            if (extra["substrate"]      == true) return "substrate"
+        }
+
         return null
     }
 
     fun handleFailure(reason: String) {
-        when (EnforcementConfig.MODE) {
-            EnforcementConfig.Mode.KILL -> {
-                log("KILL: $reason")
-                killImmediately()
-            }
-            EnforcementConfig.Mode.DIAGNOSE -> {
-                log("DIAGNOSE: $reason (not killing)")
-            }
+        if (EnforcementConfig.MODE == EnforcementConfig.Mode.KILL) {
+            log("KILL: $reason")
+            killImmediately()
+        } else {
+            log("DIAGNOSE: $reason (not killing)")
         }
     }
 
-    /**
-     * Kill بـ 4 طرق متتالية — عشان لو حد hook واحدة منهم
-     */
     private fun killImmediately() {
-        // 1) اقفل الأنشطة
-        try {
-            val ctx = applicationContext
-            ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.let {
-                it.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        } catch (_: Throwable) {}
-
-        // 2) Kill process
-        try {
-            android.os.Process.killProcess(android.os.Process.myPid())
-        } catch (_: Throwable) {}
-
-        // 3) System.exit
-        try {
-            System.exit(1)
-        } catch (_: Throwable) {}
-
-        // 4) halt — يتخطى shutdown hooks
-        try {
-            Runtime.getRuntime().halt(1)
-        } catch (_: Throwable) {}
+        try { android.os.Process.killProcess(android.os.Process.myPid()) } catch (_: Throwable) {}
+        try { System.exit(1) } catch (_: Throwable) {}
+        try { Runtime.getRuntime().halt(1) } catch (_: Throwable) {}
     }
 
     fun log(msg: String) {
         Log.d(TAG, msg)
         try { logFile.appendText("[${stamp()}] $msg\n") } catch (_: Throwable) {}
-        try { externalLog?.appendText("[${stamp()}] $msg\n") } catch (_: Throwable) {}
     }
-
-    fun readLog(): String = try {
-        if (logFile.exists()) logFile.readText() else "(no log)"
-    } catch (t: Throwable) { "read error: ${t.message}" }
 
     private fun stamp() = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
 }

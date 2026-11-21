@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(shieldlab SHARED
     apk_signature.cpp
     anti_debug.cpp
+    extra_checks.cpp
     sha256.c
 )
 target_compile_options(shieldlab PRIVATE -O2 -fvisibility=hidden)

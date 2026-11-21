@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SSL PINNING TEMPLATE — NOT ACTIVE BY DEFAULT
+
+  How to enable (when you have a backend):
+
+  1. Get the public key pin from your server:
+     openssl s_client -connect your-server.com:443 -servername your-server.com </dev/null 2>/dev/null \
+       | openssl x509 -pubkey -noout \
+       | openssl pkey -pubin -outform der \
+       | openssl dgst -sha256 -binary \
+       | openssl enc -base64
+
+  2. Copy the base64 output here (in <pin>)
+  3. Also include a backup pin from a backup key (per rotation guidelines)
+  4. Uncomment the <domain-config> block
+  5. In AndroidManifest.xml, add:
+     android:networkSecurityConfig="@xml/network_security_config"
+  6. Rebuild
+
+  Failure to include a backup pin = future outage when cert rotates.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+
+    <!--
+    <domain-config>
+        <domain includeSubdomains="true">your-server.com</domain>
+        <pin-set expiration="2026-12-31">
+            <pin digest="SHA-256">ACTIVE_PIN_BASE64_HERE=</pin>
+            <pin digest="SHA-256">BACKUP_PIN_BASE64_HERE=</pin>
+        </pin-set>
+    </domain-config>
+    -->
+</network-security-config>
