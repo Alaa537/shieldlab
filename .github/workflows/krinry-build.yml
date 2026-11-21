@@ -149,9 +149,12 @@ jobs:
           cd /tmp/xop
           
           echo "=== Fixing hardcoded SDK path for Linux CI ==="
-          # استبعاد أي سطر يحتوي على مسار Windows أو sdk.dir من settings.gradle.kts
-          grep -v -E 'sdk\.dir|E:\\Android' settings.gradle.kts > settings.gradle.kts.tmp || true
-          mv settings.gradle.kts.tmp settings.gradle.kts
+          # استبدال أي مسار Windows بمسار SDK الصحيح في بيئة Linux
+          # يتم استبدال النص "E:\Android\..." بمسار $ANDROID_HOME
+          sed -i "s|E:\\\\Android[^\"']*|$ANDROID_HOME|g" settings.gradle.kts || true
+          
+          # حذف أي سطر يحتوي على sdk.dir من settings.gradle.kts
+          sed -i '/sdk\.dir/d' settings.gradle.kts || true
           
           # إنشاء local.properties بمسار SDK الصحيح في GitHub Actions
           echo "sdk.dir=$ANDROID_HOME" > local.properties
