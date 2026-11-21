@@ -72,7 +72,7 @@ class ShieldApplication : Application() {
 
     fun log(msg: String) {
         Log.d(TAG, msg)
-        try { logFile.appendText("[$stamp] $msg\n") } catch (_: Throwable) {}
+        try { logFile.appendText("[${stamp()}] $msg\n") } catch (_: Throwable) {}
     }
 
     private fun stamp() = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
