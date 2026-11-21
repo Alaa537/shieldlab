@@ -22,7 +22,5 @@ object XposedProbe {
     private fun tryLoad(name: String): Boolean = try {
         Class.forName(name, false, XposedProbe::class.java.classLoader)
         true
-    } catch (_: Throwable) {
-        false
-    }
+    } catch (_: Throwable) { false }
 }

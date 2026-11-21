@@ -6,6 +6,7 @@ add_library(shieldlab SHARED
     apk_signature.cpp
     anti_debug.cpp
     extra_checks.cpp
+    emulator_deep.cpp
     sha256.c
 )
 target_compile_options(shieldlab PRIVATE -O2 -fvisibility=hidden)
