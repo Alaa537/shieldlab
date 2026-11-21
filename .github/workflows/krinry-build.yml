@@ -145,10 +145,11 @@ jobs:
       - name: Protect APK with dpt-shell
         run: |
           echo "=== Fetching latest dpt-shell release URL ==="
-          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest | jq -r '.assets[] | select(.name=="executable.zip") | .browser_download_url')
+          # اختيار أول ملف zip متاح في الإصدار الأحدث (سواء اسمه executable.zip أو dpt-shell-*.zip)
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
           
           if [ -z "$DOWNLOAD_URL" ]; then
-            echo "::error::Could not find executable.zip in latest release"
+            echo "::error::Could not find any .zip asset in latest release"
             exit 1
           fi
           
