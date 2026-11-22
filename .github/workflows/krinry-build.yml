@@ -142,77 +142,71 @@ jobs:
         run: |
           flutter build apk --${{ github.event.inputs.build_type }} --target-platform android-arm64 --no-tree-shake-icons
 
-      - name: Protect APK with dpt-shell
+      - name: Protect with dpt-shell (DEX Encryption)
         run: |
           set -e
           echo "=== Fetching dpt-shell release ==="
-          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest \
-            | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest             | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
           if [ -z "$DOWNLOAD_URL" ]; then
-            echo "::error::No .zip asset found"
-            exit 1
+            echo "::error::No .zip asset found for dpt-shell"; exit 1
           fi
-          echo "URL: $DOWNLOAD_URL"
           curl -L -o dpt.zip "$DOWNLOAD_URL"
           unzip -o dpt.zip
-          echo
-          echo "=== After unzip (top-level) ==="
-          ls -la
-
-          echo "=== Locate dpt.jar ==="
+          
           DPT_JAR=$(find . -maxdepth 3 -name "dpt.jar" -type f | head -n 1)
           if [ -z "$DPT_JAR" ]; then
-            echo "::error::dpt.jar not found"
-            find . -name "*.jar" -type f
-            exit 1
+            echo "::error::dpt.jar not found"; exit 1
           fi
           DPT_DIR=$(dirname "$DPT_JAR")
-          echo "dpt.jar: $DPT_JAR"
-          echo "dpt dir: $DPT_DIR"
-          ls -la "$DPT_DIR"
-
+          
           APK_IN="$(pwd)/build/app/outputs/flutter-apk/app-release.apk"
           APK_OUT_DIR="$(pwd)/build/app/outputs/flutter-apk"
-
-          echo "=== Run dpt-shell (NO signing) ==="
+          
           cd "$DPT_DIR"
-          java -jar dpt.jar -f "$APK_IN" -o "$APK_OUT_DIR" --no-sign -vs
+          # استخدام --no-sign إذا كان مدعوماً، وإلا سنتركه يوقع ثم نعيد التوقيع لاحقاً
+          java -jar dpt.jar -f "$APK_IN" -o "$APK_OUT_DIR" --no-sign -vs ||           java -jar dpt.jar -f "$APK_IN" -o "$APK_OUT_DIR" -vs
           cd - > /dev/null
-
-          echo "=== Output directory after protection ==="
-          ls -lh "$APK_OUT_DIR"
-
-          # اختر الـ output الجديد (مش الـ original)
-          DPT_OUT=$(ls -t "$APK_OUT_DIR"/*.apk 2>/dev/null \
-                    | grep -v "app-release.apk" | head -n 1)
-
+          
+          DPT_OUT=$(ls -t "$APK_OUT_DIR"/*.apk 2>/dev/null | grep -v "app-release.apk" | head -n 1)
           if [ -z "$DPT_OUT" ]; then
             echo "::warning::dpt-shell produced no output — keeping original"
             exit 0
           fi
-          echo "dpt output: $DPT_OUT"
+          mv "$DPT_OUT" "$APK_IN"
+          echo "✓ dpt-shell applied"
 
-          echo "=== Re-sign with our keystore ==="
-          BT_DIR=$(ls -d "$ANDROID_HOME"/build-tools/*/ 2>/dev/null | sort -V | tail -n 1)
-          APKSIGNER="${BT_DIR}apksigner"
-          echo "apksigner: $APKSIGNER"
+      - name: Compile Security Methods with dex2c
+        run: |
+          set -e
+          echo "=== Downloading dex2c ==="
+          wget -q https://github.com/Anon4You/dex2c/releases/latest/download/dex2c.jar -O dex2c.jar
+          
+          echo "=== Running dex2c ==="
+          java -jar dex2c.jar             -a build/app/outputs/flutter-apk/app-release.apk             -o build/app/outputs/flutter-apk/app-release-dex2c.apk             -f native/dex2c-filter.txt
+          
+          if [ -f build/app/outputs/flutter-apk/app-release-dex2c.apk ]; then
+            mv build/app/outputs/flutter-apk/app-release-dex2c.apk build/app/outputs/flutter-apk/app-release.apk
+            echo "✓ dex2c applied"
+          else
+            echo "::warning::dex2c output not found"
+          fi
 
-          "$APKSIGNER" sign \
-            --ks android/app/release.jks \
-            --ks-key-alias shieldlab \
-            --ks-pass pass:shieldlab123 \
-            --key-pass pass:shieldlab123 \
-            --out "${APK_OUT_DIR}/app-release-final.apk" \
-            "$DPT_OUT"
-
-          echo "=== Replace original APK ==="
-          mv "${APK_OUT_DIR}/app-release-final.apk" "$APK_IN"
-          rm -f "$DPT_OUT"
-
-          echo "=== Final APK ==="
-          ls -lh "$APK_OUT_DIR"
-          echo "Cert hash after re-sign:"
-          "$APKSIGNER" verify --print-certs "$APK_IN" | grep "SHA-256"
+      - name: Re-sign APK with our Keystore
+        run: |
+          set -e
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          KEYSTORE="android/app/release.jks"
+          
+          # العثور على أحدث إصدار من build-tools
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          APKSIGNER="$BUILD_TOOLS/apksigner"
+          
+          echo "Using apksigner: $APKSIGNER"
+          
+          "$APKSIGNER" sign             --ks "$KEYSTORE"             --ks-key-alias shieldlab             --ks-pass pass:shieldlab123             --key-pass pass:shieldlab123             "$APK_PATH"
+            
+          echo "=== Verify signature ==="
+          "$APKSIGNER" verify --print-certs "$APK_PATH" | grep "SHA-256"
 
       - name: Verify APK contains native lib
         run: |
