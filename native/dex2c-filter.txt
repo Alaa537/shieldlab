@@ -1,3 +1,3 @@
-Lcom/alaa/shieldlab/ShieldApplication;
-Lcom/alaa/shieldlab/MainActivity;
-Lcom/alaa/shieldlab/Enforcement;
+com/alaa/shieldlab/ShieldApplication;.*
+com/alaa/shieldlab/MainActivity;.*
+com/alaa/shieldlab/Enforcement;.*
