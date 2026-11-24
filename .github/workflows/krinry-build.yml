@@ -109,9 +109,19 @@ jobs:
 
       - name: Inject Wultra Dependency
         run: |
-          sed -i 's|dependencies {|dependencies {\n    implementation("com.wultra.android.sslpinning:wultra-ssl-pinning:2.0.0")|' android/app/build.gradle.kts
-          echo "✓ Injected Wultra dependency into build.gradle.kts"
-          grep -A 2 "dependencies {" android/app/build.gradle.kts
+          # التحقق من عدم وجود التبعية مسبقاً لتجنب التكرار
+          if ! grep -q "wultra-ssl-pinning" android/app/build.gradle.kts; then
+            # إضافة كتلة dependencies جديدة في نهاية الملف (طريقة آمنة مع Kotlin DSL)
+            echo "" >> android/app/build.gradle.kts
+            echo "dependencies {" >> android/app/build.gradle.kts
+            echo "    implementation(\"com.wultra.android.sslpinning:wultra-ssl-pinning:2.0.0\")" >> android/app/build.gradle.kts
+            echo "}" >> android/app/build.gradle.kts
+            echo "✓ Injected Wultra dependency via new dependencies block"
+          else
+            echo "✓ Wultra dependency already exists"
+          fi
+          echo "--- Last 5 lines of build.gradle.kts ---"
+          tail -5 android/app/build.gradle.kts
 
       - name: Config native + signing
         run: |
