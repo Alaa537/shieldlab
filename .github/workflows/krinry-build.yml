@@ -138,6 +138,34 @@ jobs:
           echo "--- tail of build.gradle.kts ---"
           tail -25 android/app/build.gradle.kts
 
+      - name: Setup Gradle Retry Options
+        run: |
+          # زيادة عدد محاولات إعادة الاتصال وتقليل الضغط على الخوادم
+          echo "GRADLE_OPTS=-Dorg.gradle.internal.repository.max.retries=10 -Dorg.gradle.internal.repository.initial.backoff=5000" >> $GITHUB_ENV
+      - name: Configure Maven Mirror
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cat > ~/.gradle/init.d/mirror.gradle.kts << 'EOF'
+          // استخدام مرآة Google Maven Central لتجنب أخطاء 429
+          val mirrorUrl = "https://maven-central.storage-download.googleapis.com/maven2/"
+          settingsEvaluated {
+              pluginManagement.repositories {
+                  maven { url = uri(mirrorUrl) }
+              }
+              dependencyResolutionManagement.repositories {
+                  maven { url = uri(mirrorUrl) }
+              }
+          }
+          allprojects {
+              buildscript.repositories {
+                  maven { url = uri(mirrorUrl) }
+              }
+              repositories {
+                  maven { url = uri(mirrorUrl) }
+              }
+          }
+          EOF
+          echo "✓ Maven mirror configured"
       - name: Build
         run: |
           flutter build apk --${{ github.event.inputs.build_type }} --target-platform android-arm64 --no-tree-shake-icons
