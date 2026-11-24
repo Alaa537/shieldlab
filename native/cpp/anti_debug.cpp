@@ -58,6 +58,10 @@ static int check_emulator() {
 }
 
 // Bit 0: tracer | 1: frida | 2: root | 3: emulator
+
+static int check_selinux_status();
+static int check_suspicious_libraries();
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_alaa_shieldlab_Enforcement_nativeEnvFlags(JNIEnv*, jobject) {
     int f = 0;
@@ -65,5 +69,33 @@ Java_com_alaa_shieldlab_Enforcement_nativeEnvFlags(JNIEnv*, jobject) {
     if (check_frida())      f |= 2;
     if (check_root())       f |= 4;
     if (check_emulator())   f |= 8;
+    if (check_selinux_status()) f |= 16;      // KKND
+    if (check_suspicious_libraries()) f |= 32; // SecurityRisk
     return f;
+}
+
+// فحص SELinux (من KKND)
+static int check_selinux_status() {
+    char b[256];
+    if (rf("/sys/fs/selinux/enforce", b, sizeof(b)) > 0) {
+        // إذا كانت القيمة 0 فهذا يعني أن SELinux في وضع Permissive (خطر)
+        if (b[0] == '0') return 1;
+    }
+    return 0;
+}
+
+// فحص GOT/PLT Hook (من SecurityRisk)
+// هذا فحص مبسط: يبحث عن مكتبات مشبوهة محملة في الذاكرة
+static int check_suspicious_libraries() {
+    char b[65536];
+    if (rf("/proc/self/maps", b, sizeof(b)) > 0) {
+        const char* suspicious[] = {
+            "libfrida", "libxposed", "libsubstrate", "libhook",
+            "libriru", "libzygisk", "libmagisk"
+        };
+        for (auto s : suspicious) {
+            if (strstr(b, s)) return 1;
+        }
+    }
+    return 0;
 }

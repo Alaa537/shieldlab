@@ -107,6 +107,12 @@ jobs:
           echo "Application count: $(grep -c '.ShieldApplication' "$M") (should be 1)"
           echo "CrashActivity count: $(grep -c '.CrashActivity' "$M") (should be 1)"
 
+      - name: Inject Wultra Dependency
+        run: |
+          sed -i 's|dependencies {|dependencies {\n    implementation("com.wultra.android.sslpinning:wultra-ssl-pinning:2.0.0")|' android/app/build.gradle.kts
+          echo "✓ Injected Wultra dependency into build.gradle.kts"
+          grep -A 2 "dependencies {" android/app/build.gradle.kts
+
       - name: Config native + signing
         run: |
           cat >> android/app/build.gradle.kts << 'GRADLE_EOF'
