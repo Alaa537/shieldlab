@@ -8,6 +8,7 @@ add_library(shieldlab SHARED
     extra_checks.cpp
     emulator_deep.cpp
     sha256.c
+    vigil_checks.cpp
 )
 target_compile_options(shieldlab PRIVATE -O2 -fvisibility=hidden)
 target_link_libraries(shieldlab log)
