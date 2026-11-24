@@ -142,11 +142,32 @@ jobs:
         run: |
           flutter build apk --${{ github.event.inputs.build_type }} --target-platform android-arm64 --no-tree-shake-icons
 
+      - name: Compile Security Methods with dex2c
+        run: |
+          set -e
+          echo "=== Downloading dex2c ==="
+          wget -q https://github.com/Anon4You/dex2c/releases/latest/download/dex2c.jar -O dex2c.jar
+          
+          echo "=== Running dex2c ==="
+          java -jar dex2c.jar \
+            -a build/app/outputs/flutter-apk/app-release.apk \
+            -o build/app/outputs/flutter-apk/app-release-dex2c.apk \
+            -f native/dex2c-filter.txt
+          
+          if [ -f build/app/outputs/flutter-apk/app-release-dex2c.apk ]; then
+            mv build/app/outputs/flutter-apk/app-release-dex2c.apk build/app/outputs/flutter-apk/app-release.apk
+            echo "✓ dex2c applied"
+          else
+            echo "::error::dex2c failed to produce output"
+            exit 1
+          fi
+
       - name: Protect with dpt-shell (DEX Encryption)
         run: |
           set -e
           echo "=== Fetching dpt-shell release ==="
-          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest             | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
+          DOWNLOAD_URL=$(curl -s https://api.github.com/repos/luoyesiqiu/dpt-shell/releases/latest \
+            | jq -r '.assets[] | select(.name | endswith(".zip")) | .browser_download_url' | head -n 1)
           if [ -z "$DOWNLOAD_URL" ]; then
             echo "::error::No .zip asset found for dpt-shell"; exit 1
           fi
@@ -163,8 +184,8 @@ jobs:
           APK_OUT_DIR="$(pwd)/build/app/outputs/flutter-apk"
           
           cd "$DPT_DIR"
-          # استخدام --no-sign إذا كان مدعوماً، وإلا سنتركه يوقع ثم نعيد التوقيع لاحقاً
-          java -jar dpt.jar -f "$APK_IN" -o "$APK_OUT_DIR" --no-sign -vs ||           java -jar dpt.jar -f "$APK_IN" -o "$APK_OUT_DIR" -vs
+          java -jar dpt.jar -f "$APK_IN" -o "$APK_OUT_DIR" --no-sign -vs || \
+          java -jar dpt.jar -f "$APK_IN" -o "$APK_OUT_DIR" -vs
           cd - > /dev/null
           
           DPT_OUT=$(ls -t "$APK_OUT_DIR"/*.apk 2>/dev/null | grep -v "app-release.apk" | head -n 1)
@@ -174,22 +195,6 @@ jobs:
           fi
           mv "$DPT_OUT" "$APK_IN"
           echo "✓ dpt-shell applied"
-
-      - name: Compile Security Methods with dex2c
-        run: |
-          set -e
-          echo "=== Downloading dex2c ==="
-          wget -q https://github.com/Anon4You/dex2c/releases/latest/download/dex2c.jar -O dex2c.jar
-          
-          echo "=== Running dex2c ==="
-          java -jar dex2c.jar             -a build/app/outputs/flutter-apk/app-release.apk             -o build/app/outputs/flutter-apk/app-release-dex2c.apk             -f native/dex2c-filter.txt
-          
-          if [ -f build/app/outputs/flutter-apk/app-release-dex2c.apk ]; then
-            mv build/app/outputs/flutter-apk/app-release-dex2c.apk build/app/outputs/flutter-apk/app-release.apk
-            echo "✓ dex2c applied"
-          else
-            echo "::warning::dex2c output not found"
-          fi
 
       - name: Re-sign APK with our Keystore
         run: |
